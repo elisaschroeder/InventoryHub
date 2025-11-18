@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "+dpDMPFIHGo=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\elisa\\OneDrive\\Elisas Docs\\Education and Training\\Full-Stack Development\\FullStackIntegration\\FullStackApp\\ServerApp\\ServerApp.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\elisa\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.10\\microsoft.aspnetcore.openapi.9.0.10.nupkg.sha512",
+    "C:\\Users\\elisa\\.nuget\\packages\\microsoft.openapi\\1.6.17\\microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}

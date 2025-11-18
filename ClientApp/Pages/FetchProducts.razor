@@ -1,0 +1,135 @@
+@page "/fetchproducts"
+@using System.Net.Http.Json
+@using System.ComponentModel.DataAnnotations
+@using Shared.Models
+@inject HttpClient Http
+
+<div class="container">
+    <h3>Product List</h3>
+
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <p>Loading products...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Error:</strong> @errorMessage
+            <br />
+            <button class="btn btn-primary mt-2" @onclick="RetryLoadProductsAsync">Retry</button>
+        </div>
+    }
+    else if (products != null && products.Length > 0)
+    {
+        <ul class="list-group">
+            @foreach (var product in products)
+            {
+                <li class="list-group-item">
+                    <strong>@product.Name</strong> - @product.Price.ToString("C")
+                    <span class="badge bg-secondary float-end">Stock: @product.Stock</span>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <div class="alert alert-info">No products available.</div>
+    }
+</div>
+
+@code {
+    private Product[]? products = Array.Empty<Product>();
+    private bool isLoading = true;
+    private string? errorMessage;
+    
+    private const int TimeoutSeconds = 10;
+    private const string ApiBaseUrl = "http://localhost:5198";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        
+        try
+        {
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(TimeoutSeconds));
+            var cancellationToken = cancellationTokenSource.Token;
+            
+            var response = await Http.GetAsync($"{ApiBaseUrl}/api/products", cancellationToken);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var statusCode = (int)response.StatusCode;
+                errorMessage = $"Failed to fetch products. Status code: {statusCode} ({response.StatusCode})";
+                return;
+            }
+
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            if (contentType != "application/json")
+            {
+                errorMessage = $"Invalid response format. Expected JSON but received {contentType ?? "unknown"}";
+                return;
+            }
+
+            products = await response.Content.ReadFromJsonAsync<Product[]>(cancellationToken: cancellationToken);
+            
+            if (products == null)
+            {
+                errorMessage = "Received null response from server";
+                products = Array.Empty<Product>();
+                return;
+            }
+
+            // Validate received products
+            var invalidProducts = new List<string>();
+            foreach (var product in products)
+            {
+                var validationContext = new ValidationContext(product);
+                var validationResults = new List<ValidationResult>();
+                
+                if (!Validator.TryValidateObject(product, validationContext, validationResults, true))
+                {
+                    var errors = string.Join(", ", validationResults.Select(r => r.ErrorMessage));
+                    invalidProducts.Add($"{product.Name ?? "Unknown"}: {errors}");
+                }
+            }
+
+            if (invalidProducts.Any())
+            {
+                errorMessage = $"Invalid product data received: {string.Join("; ", invalidProducts)}";
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            errorMessage = $"Request timed out after {TimeoutSeconds} seconds. Please check your connection and try again.";
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Network error: {ex.Message}. Please ensure the server is running.";
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            errorMessage = $"Invalid JSON response: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RetryLoadProductsAsync()
+    {
+        await LoadProductsAsync();
+    }
+}
